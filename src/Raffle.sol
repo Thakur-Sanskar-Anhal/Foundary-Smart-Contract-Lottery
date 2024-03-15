@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.18;
 
 //imports
     import {VRFCoordinatorV2Interface} from "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
     import {VRFConsumerBaseV2} from "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
 
-
+// contracts
 contract Raffle is VRFConsumerBaseV2{
 
 //errors
     error Raffle__NotEnoughEthSent();
     error Raffle__TransferFailed();
     error Raffle__RaffleNotOpen();
+    error Raffle__UpkeepNotNeeded(uint256 currentBalnace, uint256 numPlayers, uint256 raffleState );
 
 //type declarations
     enum RaffleState {
@@ -76,15 +77,27 @@ contract Raffle is VRFConsumerBaseV2{
         emit EnteredRaffle(msg.sender);
     }
 
-    function pickWinner() external {
-        if((block.timestamp - s_lastTimeStamp) < i_interval)
-        {
-            revert Raffle__NotEnoughEthSent();
+    function checkUpkeep(bytes memory) public view returns (bool upkeepNeeded, bytes memory /* performData */){
+        bool timeHasPassed =(block.timestamp - s_lastTimeStamp) >= i_interval;
+        bool isOpen = RaffleState.OPEN == s_raffleState;
+        bool hasBalance = address(this).balance > 0;
+        bool hasPlayers = s_players.length > 0;
+        upkeepNeeded = (timeHasPassed && isOpen && hasBalance && hasPlayers); 
+        return(upkeepNeeded ,"0x0");
+    }
+
+    function performUpkeep(bytes calldata /* performData */) external {
+        (bool upkeepNeeded, ) = checkUpkeep("");
+        if (!upkeepNeeded){
+            revert Raffle__UpkeepNotNeeded(
+                address(this).balance,
+                s_players.length,
+                uint256(s_raffleState)
+            );
         }
 
         s_raffleState = RaffleState.CALCULATING;
-
-        uint256 requestId = i_vrfCoordinator.requestRandomWords(
+        i_vrfCoordinator.requestRandomWords(
             i_gasLane,
             i_subscriptionId,
             REQUEST_CONFORMATIONS,
@@ -94,7 +107,7 @@ contract Raffle is VRFConsumerBaseV2{
     }
 
     function fulfillRandomWords(
-        uint256 requestId,
+        uint256 /*requestId*/,
         uint256[] memory randomWords
     ) internal override {
         uint256 indexOfWinner = randomWords[0] % s_players.length;
@@ -117,5 +130,12 @@ contract Raffle is VRFConsumerBaseV2{
         return i_entranceFee;
     }
 
+// getter functions
+    function getRaffleState() external view returns(RaffleState) {
+        return s_raffleState;
+    }
 
+    function getPlayer(uint256 indexOfPlayer) external view returns(address) {
+        return s_players[indexOfPlayer];
+    }
 }
