@@ -4,7 +4,7 @@ pragma solidity ^0.8.18;
 //imports
 import {VRFCoordinatorV2Interface} from "@chainlink/contracts/src/v0.8/interfaces/VRFCoordinatorV2Interface.sol";
 import {VRFConsumerBaseV2} from "@chainlink/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol";
-import "forge-std/console.sol";
+import {console} from "forge-std/console.sol";
 
 // contracts
 contract Raffle is VRFConsumerBaseV2 {
